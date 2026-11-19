@@ -122,10 +122,16 @@ function App() {
     setTimeout(() => setToast(''), 3200);
   };
   const logout = async (all = false) => {
-    await fetch(`${API}/auth/${all ? 'logout-all' : 'logout'}`, {
-      method: 'POST',
-      credentials: 'include',
-    }).catch(() => {});
+    try {
+      const response = await fetch(`${API}/auth/${all ? 'logout-all' : 'logout'}`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Sign out could not be completed. Please try again.');
+    } catch (error) {
+      notify(error.message || 'Sign out could not be completed. Please try again.');
+      return;
+    }
     setAuth(null);
     setPage('Overview');
     setAuthView('login');
