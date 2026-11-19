@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Activity, ArrowDown, ArrowDownUp, ArrowLeft, ArrowRight, ArrowUpRight, Bell, Box, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, Clock3, Download, FileText, Filter, Home, LayoutDashboard, LogOut, MapPin, Menu, MoreHorizontal, Package, Plus, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Truck, Users, Wallet, X } from 'lucide-react';
 import './styles.css';
@@ -18,7 +18,7 @@ function App(){
  if(!auth)return <AuthScreen view={authView} setView={setAuthView} token={authToken} setToken={setAuthToken} message={authMessage} setMessage={setAuthMessage} onAuth={setAuth}/>;
  const notify=(s)=>{setToast(s);setTimeout(()=>setToast(''),3200)};
  const logout=async(all=false)=>{await fetch(`${API}/auth/${all?'logout-all':'logout'}`,{method:'POST',credentials:'include'}).catch(()=>{});setAuth(null);setPage('Overview');setAuthView('login');notify('You have been signed out.')};
- const visible=useMemo(()=>shipments.filter(s=>(statusFilter==='All shipments'||s.status===statusFilter)&&`${s.id} ${s.awb} ${s.recipient} ${s.provider}`.toLowerCase().includes(query.toLowerCase())),[shipments,statusFilter,query]);
+ const visible=shipments.filter(s=>(statusFilter==='All shipments'||s.status===statusFilter)&&`${s.id} ${s.awb} ${s.recipient} ${s.provider}`.toLowerCase().includes(query.toLowerCase()));
  const nav=[{label:'WORKSPACE',items:[['Overview',LayoutDashboard],['Shipments',Package],['Book shipment',Plus],['Address book',MapPin]]},{label:'ACCOUNT',items:[['Payments',Wallet],['Settings',Settings]]}];
  const go=(v)=>{if(v==='Book shipment'){setBookOpen(true);return}setPage(v);setMobileNav(false)};
  const createBooking=(shipment)=>{setShipments(s=>[shipment,...s]);setBookOpen(false);setPage('Shipments');notify('Shipment booked successfully. Your label is ready.');fetch(`${API}/shipments`,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json','Idempotency-Key':shipment.id},body:JSON.stringify(shipment)}).catch(()=>{});};
