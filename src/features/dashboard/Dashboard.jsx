@@ -12,15 +12,24 @@ import {
   Truck,
 } from 'lucide-react';
 import { Metric, PageTitle, ShipmentTable } from '../../components/shared.jsx';
-function Dashboard({ shipments, go, setTracking, range, setRange }) {
+function Dashboard({ user, shipments, go, setTracking, range, setRange }) {
   const count = s => shipments.filter(x => x.status === s).length;
+  const firstName = user?.fullName?.trim().split(/\s+/)[0] || 'there';
+  const today = new Intl.DateTimeFormat('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  })
+    .format(new Date())
+    .toUpperCase();
   const delivered = count('Delivered'),
     transit = shipments.filter(x => ['In transit', 'Out for delivery'].includes(x.status)).length;
   return (
     <>
       <PageTitle
-        eyebrow="WEDNESDAY, NOVEMBER 19, 2026"
-        title="Good morning, Priya 👋"
+        eyebrow={today}
+        title={`Good morning, ${firstName} 👋`}
         subtitle="Here’s what’s happening with your shipments today."
         action={
           <button className="button-primary" onClick={() => go('Book shipment')}>

@@ -14,10 +14,33 @@ import API from '../../lib/api.js';
 import { seedQuotes } from '../../data/carrierQuotes.js';
 import { Field, ReviewBlock } from '../../components/shared.jsx';
 import { providerLetter, providerTone } from '../../lib/carriers.js';
+
+let razorpayLoader;
+const createShipmentId = () =>
+  `SHP-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+const loadRazorpay = () => {
+  if (window.Razorpay) return Promise.resolve();
+  if (!razorpayLoader) {
+    razorpayLoader = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      script.onload = resolve;
+      script.onerror = () =>
+        reject(new Error('Could not load UPI checkout. Check your connection.'));
+      document.body.appendChild(script);
+    });
+  }
+  return razorpayLoader;
+};
+
 function BookingModal({ onClose, onBooked, addresses }) {
   const [step, setStep] = useState(1),
     [selected, setSelected] = useState(null),
     [busy, setBusy] = useState(false),
+    [paymentError, setPaymentError] = useState(''),
+    [shipmentId, setShipmentId] = useState(createShipmentId),
+    [paymentAttemptStarted, setPaymentAttemptStarted] = useState(false),
     [rates, setRates] = useState(seedQuotes),
     [rateNotice, setRateNotice] = useState(
       'Prices shown are sample estimates. Live provider rates become available after carrier API credentials are configured.',
@@ -134,33 +157,101 @@ function BookingModal({ onClose, onBooked, addresses }) {
       alert('Enter valid weight and dimensions.');
       return;
     }
+    if (step === 2 && form.payment === 'COD' && (!Number(form.cod) || Number(form.cod) <= 0)) {
+      alert('Enter the amount the recipient will pay to the courier.');
+      return;
+    }
     setStep(step + 1);
   };
-  const finish = () => {
-    if (!selected) return;
+  const finish = async () => {
+    if (selected === null) return;
     setBusy(true);
+    setPaymentError('');
     const provider = rates[selected];
-    setTimeout(() => {
-      const n = Date.now().toString().slice(-6),
-        s = {
-          id: `SHP-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
-          awb: `${provider.provider.slice(0, 2).toUpperCase()}${n}2845193`,
+    try {
+      if (!provider.quoteId)
+        throw new Error('Choose a live courier quote before continuing to payment.');
+      const orderResponse = await fetch(`${API}/payments/razorpay/order`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          quoteId: provider.quoteId,
           provider: provider.provider,
-          recipient: form.recipient,
-          destination: form.pin,
-          date: '19 Nov, 2026',
-          amount: provider.price,
-          status: 'Pickup scheduled',
-          initials: form.recipient
-            .split(' ')
-            .map(w => w[0])
-            .join('')
-            .slice(0, 2)
-            .toUpperCase(),
-          color: 'lavender',
-        };
-      onBooked(s);
-    }, 750);
+          idempotencyKey: shipmentId,
+          shipment: {
+            recipient: form.recipient,
+            phone: form.phone,
+            address: form.address,
+            destination: form.pin,
+            city: form.city,
+            state: form.state,
+            pickupName: form.pickupName,
+            pickupPhone: form.pickupPhone,
+            pickupAddress: form.pickupAddress,
+            pickupPin: form.pickupPin,
+            pickupCity: form.pickupCity,
+            pickupState: form.pickupState,
+            weight: form.weight,
+            length: form.length,
+            width: form.width,
+            height: form.height,
+            description: form.description,
+            value: form.value,
+            paymentType: form.payment,
+            codAmount: form.cod ? Number(form.cod) : 0,
+          },
+        }),
+      });
+      const orderData = await orderResponse.json();
+      if (!orderResponse.ok) throw new Error(orderData.error || 'Could not start UPI checkout.');
+      if (orderData.shipment) {
+        onBooked(orderData.shipment);
+        return;
+      }
+      setPaymentAttemptStarted(true);
+      await loadRazorpay();
+      if (!window.Razorpay) throw new Error('UPI checkout did not load. Please try again.');
+      const checkout = new window.Razorpay({
+        key: orderData.keyId,
+        order_id: orderData.orderId,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: orderData.name,
+        description: orderData.description,
+        theme: { color: '#705bd1' },
+        modal: {
+          ondismiss: () => setBusy(false),
+        },
+        handler: async response => {
+          setBusy(true);
+          try {
+            const verifyResponse = await fetch(`${API}/payments/razorpay/verify`, {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(response),
+            });
+            const verifyData = await verifyResponse.json();
+            if (!verifyResponse.ok)
+              throw new Error(verifyData.error || 'Payment could not be verified yet.');
+            onBooked(verifyData.shipment);
+          } catch (error) {
+            setPaymentError(error.message || 'Payment verification failed. You can retry shortly.');
+            setBusy(false);
+          }
+        },
+      });
+      checkout.on('payment.failed', response => {
+        setPaymentError(response.error?.description || 'UPI payment failed. Please try again.');
+        setBusy(false);
+      });
+      checkout.open();
+      setBusy(false);
+    } catch (error) {
+      setPaymentError(error.message || 'Could not start payment. Please try again.');
+      setBusy(false);
+    }
   };
   return (
     <div className="modal-backdrop" onMouseDown={e => e.target === e.currentTarget && onClose()}>
@@ -176,7 +267,7 @@ function BookingModal({ onClose, onBooked, addresses }) {
           </button>
         </div>
         <div className="stepper">
-          {['Addresses', 'Package', 'Choose courier', 'Confirm'].map((x, i) => (
+          {['Addresses', 'Package', 'Courier', 'Review', 'Payment'].map((x, i) => (
             <div
               className={`step-item ${step === i + 1 ? 'selected' : step > i + 1 ? 'complete' : ''}`}
               key={x}
@@ -414,7 +505,13 @@ function BookingModal({ onClose, onBooked, addresses }) {
                   <button
                     key={q.provider}
                     className={`rate-card ${selected === i ? 'chosen' : ''}`}
-                    onClick={() => setSelected(i)}
+                    onClick={() => {
+                      if (selected !== i && paymentAttemptStarted) {
+                        setShipmentId(createShipmentId());
+                        setPaymentAttemptStarted(false);
+                      }
+                      setSelected(i);
+                    }}
                   >
                     <span className={`provider-mark large ${providerTone(q.provider)}`}>
                       {providerLetter(q.provider)}
@@ -448,7 +545,7 @@ function BookingModal({ onClose, onBooked, addresses }) {
           )}
           {step === 4 && (
             <>
-              <div className="section-kicker">04 — REVIEW & CONFIRM</div>
+              <div className="section-kicker">04 — REVIEW BOOKING</div>
               <div className="confirm-banner">
                 <div>
                   <Check size={18} />
@@ -498,16 +595,39 @@ function BookingModal({ onClose, onBooked, addresses }) {
                   </strong>
                 </div>
               )}
-              <label className="terms-check">
-                <input type="checkbox" defaultChecked />I agree to the{' '}
-                <a href="#terms">shipping terms and conditions</a>
-              </label>
+            </>
+          )}
+          {step === 5 && (
+            <>
+              <div className="section-kicker">05 — SECURE UPI PAYMENT</div>
+              <div className="upi-payment-card">
+                <div className="upi-payment-heading">
+                  <span className="upi-mark">UPI</span>
+                  <div>
+                    <b>Pay the shipping charge</b>
+                    <small>Choose a UPI app in the secure checkout.</small>
+                  </div>
+                  <strong>₹{rates[selected]?.price}.00</strong>
+                </div>
+                <div className="upi-app-list" aria-label="Supported UPI apps">
+                  {['Google Pay', 'PhonePe', 'Paytm', 'BHIM', 'More UPI apps'].map(app => (
+                    <span key={app}>{app}</span>
+                  ))}
+                </div>
+                <p>
+                  Your payment is verified securely before the shipment is booked. COD collection,
+                  if selected, is paid by the recipient to the courier separately.
+                </p>
+                <small className="upi-powered">UPI checkout powered by Razorpay</small>
+              </div>
+              {paymentError && <div className="auth-alert error payment-error">{paymentError}</div>}
             </>
           )}
         </div>
         <div className="modal-footer">
           <button
             className="button-secondary"
+            disabled={busy}
             onClick={() => (step === 1 ? onClose() : setStep(step - 1))}
           >
             {step === 1 ? (
@@ -524,17 +644,21 @@ function BookingModal({ onClose, onBooked, addresses }) {
           </span>
           <button
             className="button-primary"
-            disabled={(step === 3 && selected === null) || busy}
-            onClick={step === 4 ? finish : next}
+            disabled={
+              (step === 3 && selected === null) || (step === 5 && selected === null) || busy
+            }
+            onClick={step === 5 ? finish : next}
           >
             {busy
               ? 'Booking…'
-              : step === 4
-                ? 'Confirm booking'
+              : step === 5
+                ? `Pay ₹${rates[selected]?.price}.00`
                 : step === 3
                   ? 'Review booking'
-                  : 'Continue'}
-            {step !== 4 && <ArrowRight size={15} />}
+                  : step === 4
+                    ? 'Continue to payment'
+                    : 'Continue'}
+            {step !== 5 && <ArrowRight size={15} />}
           </button>
         </div>
       </div>

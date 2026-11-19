@@ -42,6 +42,7 @@ function App() {
     [page, setPage] = useState('Overview'),
     [shipments, setShipments] = useState([]),
     [addresses, setAddresses] = useState([]),
+    [payments, setPayments] = useState([]),
     [query, setQuery] = useState(''),
     [statusFilter, setStatusFilter] = useState('All shipments'),
     [bookOpen, setBookOpen] = useState(false),
@@ -133,6 +134,10 @@ function App() {
       .then(r => (r.ok ? r.json() : null))
       .then(x => x && setAddresses(x))
       .catch(() => {});
+    fetch(`${API}/payments`, { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(x => Array.isArray(x) && setPayments(x))
+      .catch(() => {});
   }, [auth]);
   if (auth === undefined)
     return (
@@ -206,16 +211,24 @@ function App() {
     setMobileNav(false);
   };
   const createBooking = shipment => {
-    setShipments(s => [shipment, ...s]);
+    if (!shipment) return;
+    setShipments(current => [shipment, ...current.filter(item => item.id !== shipment.id)]);
+    setPayments(current => [
+      {
+        id: shipment.paymentId,
+        shipmentId: shipment.id,
+        carrier: shipment.provider,
+        amount: shipment.amount,
+        currency: 'INR',
+        method: 'upi',
+        status: 'used',
+        createdAt: shipment.createdAt,
+      },
+      ...current.filter(payment => payment.shipmentId !== shipment.id),
+    ]);
     setBookOpen(false);
     setPage('Shipments');
-    notify('Shipment booked successfully. Your label is ready.');
-    fetch(`${API}/shipments`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': shipment.id },
-      body: JSON.stringify(shipment),
-    }).catch(() => {});
+    notify('Payment verified and shipment booked successfully.');
   };
   const exportCsv = () => {
     const csv = [
@@ -331,6 +344,7 @@ function App() {
         <div className="content-wrap">
           {page === 'Overview' ? (
             <Dashboard
+              user={auth}
               shipments={shipments}
               go={go}
               setTracking={setTracking}
@@ -351,7 +365,7 @@ function App() {
           ) : page === 'Address book' ? (
             <AddressBook addresses={addresses} setAddresses={setAddresses} notify={notify} />
           ) : page === 'Payments' ? (
-            <Payments notify={notify} />
+            <Payments payments={payments} notify={notify} />
           ) : page === 'Settings' ? (
             <SettingsPage
               user={auth}
@@ -361,6 +375,7 @@ function App() {
             />
           ) : (
             <Dashboard
+              user={auth}
               shipments={shipments}
               go={go}
               setTracking={setTracking}
