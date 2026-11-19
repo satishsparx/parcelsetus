@@ -53,7 +53,8 @@ function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const verify = params.get('verify'),
-      reset = params.get('reset');
+      reset = params.get('reset'),
+      changeEmail = params.get('changeEmail');
     if (verify) {
       fetch(`${API}/auth/verify-email`, {
         method: 'POST',
@@ -77,6 +78,42 @@ function App() {
           setAuth(null);
           setAuthView('verify-error');
           setAuthMessage('Could not reach the server. Please try the verification link again.');
+        });
+      return;
+    }
+    if (changeEmail) {
+      fetch(`${API}/auth/verify-email-change`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: changeEmail }),
+      })
+        .then(r => r.json().then(data => ({ ok: r.ok, data })))
+        .then(async ({ ok, data }) => {
+          history.replaceState({}, '', window.location.pathname);
+          setAuthView('login');
+          if (!ok) {
+            setAuth(null);
+            setAuthMessage(data.error || 'Could not update your email address.');
+            return;
+          }
+          const current = await fetch(`${API}/auth/me`, { credentials: 'include' }).catch(
+            () => null,
+          );
+          const currentData = current?.ok ? await current.json() : null;
+          if (currentData?.user) {
+            setAuth(currentData.user);
+            setPage('Settings');
+          } else {
+            setAuth(null);
+            setAuthMessage('Email updated. Sign in with your new email address.');
+          }
+        })
+        .catch(() => {
+          history.replaceState({}, '', window.location.pathname);
+          setAuth(null);
+          setAuthView('login');
+          setAuthMessage('Could not reach the server to update your email address.');
         });
       return;
     }

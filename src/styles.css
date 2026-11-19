@@ -1774,6 +1774,13 @@ button:disabled {
   background: none;
   color: #999;
 }
+.address-actions {
+  display: flex;
+  gap: 6px;
+}
+.address-actions button {
+  cursor: pointer;
+}
 .address-card h3 {
   font-size: 15px;
   margin: 13px 0 7px;
@@ -1973,6 +1980,34 @@ button:disabled {
   padding: 12px 17px;
   display: flex;
   justify-content: flex-end;
+}
+.settings-feedback {
+  margin: 0 17px 12px;
+  color: #6154b9;
+  font-size: 13px;
+}
+.settings-feedback a {
+  color: #5f4cc5;
+  font-weight: 600;
+}
+.default-address-check,
+.address-form-error,
+.address-form-footer {
+  grid-column: 1 / -1;
+}
+.default-address-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #666773;
+  font-size: 13px;
+}
+.default-address-check input {
+  accent-color: #705bd1;
+}
+.address-modal .address-form-footer {
+  width: calc(100% + 46px);
+  margin: 4px -23px -18px;
 }
 .nav-scrim {
   display: none;

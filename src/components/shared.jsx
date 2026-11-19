@@ -124,14 +124,30 @@ function Status({ status }) {
   );
 }
 
-export function Field({ label, name, value, onChange, placeholder, wide, required }) {
+export function Field({
+  label,
+  name,
+  value,
+  onChange,
+  placeholder,
+  wide,
+  required,
+  type = 'text',
+}) {
   return (
     <label className={`form-field ${wide ? 'wide' : ''}`}>
       <span>
         {label}
         {required && <i>*</i>}
       </span>
-      <input name={name} value={value} onChange={onChange} placeholder={placeholder} />
+      <input
+        type={type}
+        name={name}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        required={required}
+      />
     </label>
   );
 }

@@ -2,38 +2,102 @@ import { useState } from 'react';
 import { Bell, Building2, Check, LogOut, ShieldCheck, Users } from 'lucide-react';
 import API from '../../lib/api.js';
 import { Field, PageTitle } from '../../components/shared.jsx';
+
+const profileFromUser = user => ({
+  fullName: user.fullName || '',
+  email: user.email || '',
+  mobile: user.mobile || '',
+  businessName: user.businessName || '',
+  businessAddress: user.businessAddress || '',
+  gstin: user.gstin || '',
+});
+
 function SettingsPage({ user, onUser, notify, onLogoutAll }) {
-  const [password, setPassword] = useState(''),
-    [linkError, setLinkError] = useState(''),
-    [linkBusy, setLinkBusy] = useState(false);
+  const [profile, setProfile] = useState(() => profileFromUser(user));
+  const [password, setPassword] = useState('');
+  const [linkError, setLinkError] = useState('');
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [profileError, setProfileError] = useState('');
+  const [emailNotice, setEmailNotice] = useState('');
+  const [verificationLink, setVerificationLink] = useState('');
+
+  const updateProfile = e =>
+    setProfile(current => ({ ...current, [e.target.name]: e.target.value }));
+
+  const saveProfile = async e => {
+    e.preventDefault();
+    setProfileBusy(true);
+    setProfileError('');
+    setEmailNotice('');
+    setVerificationLink('');
+    try {
+      const response = await fetch(`${API}/profile`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName: profile.fullName,
+          businessName: profile.businessName,
+          mobile: profile.mobile,
+          businessAddress: profile.businessAddress,
+          gstin: profile.gstin,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not save your business details.');
+      onUser(data.user);
+
+      if (profile.email.trim().toLowerCase() !== user.email.toLowerCase()) {
+        const emailResponse = await fetch(`${API}/auth/change-email`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: profile.email }),
+        });
+        const emailData = await emailResponse.json();
+        if (!emailResponse.ok)
+          throw new Error(emailData.error || 'Could not request an email change.');
+        setEmailNotice(emailData.message);
+        setVerificationLink(emailData.developmentLink || '');
+      }
+      notify('Business information saved.');
+    } catch (error) {
+      setProfileError(error.message || 'Could not save your business details.');
+    } finally {
+      setProfileBusy(false);
+    }
+  };
+
   const linkPassword = async e => {
     e.preventDefault();
     setLinkError('');
     setLinkBusy(true);
     try {
-      const r = await fetch(`${API}/auth/link-password`, {
+      const response = await fetch(`${API}/auth/link-password`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password }),
       });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error);
-      onUser(d.user);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      onUser(data.user);
       setPassword('');
       notify('Password sign-in connected.');
-    } catch (e) {
-      setLinkError(e.message);
+    } catch (error) {
+      setLinkError(error.message);
     } finally {
       setLinkBusy(false);
     }
   };
+
   return (
     <>
       <PageTitle
         eyebrow="YOUR ACCOUNT"
         title="Settings"
-        subtitle="Manage your profile and business preferences."
+        subtitle="Manage your profile and business information."
       />
       <div className="settings-layout">
         <aside className="panel settings-nav">
@@ -57,8 +121,8 @@ function SettingsPage({ user, onUser, notify, onLogoutAll }) {
         <section className="panel settings-content">
           <div className="panel-heading">
             <div>
-              <h2>Personal information</h2>
-              <p>Update your personal details here.</p>
+              <h2>Business information</h2>
+              <p>Keep your contact and business details up to date.</p>
             </div>
           </div>
           <div className="settings-avatar">
@@ -73,32 +137,73 @@ function SettingsPage({ user, onUser, notify, onLogoutAll }) {
               <b>{user.fullName}</b>
               <span>{user.accountType} account</span>
             </div>
-            <span className="verified-label">
-              <Check size={12} />
-              Verified
-            </span>
+            {user.emailVerified && (
+              <span className="verified-label">
+                <Check size={12} />
+                Verified
+              </span>
+            )}
           </div>
-          <div className="form-grid settings-form">
-            <Field label="Full name" name="name" value={user.fullName || ''} onChange={() => {}} />
-            <Field
-              label="Email address"
-              name="email"
-              value={user.email || ''}
-              onChange={() => {}}
-            />
-            <Field
-              label="Mobile number"
-              name="mobile"
-              value={user.mobile || 'Not added'}
-              onChange={() => {}}
-            />
-            <Field
-              label="Business name"
-              name="business"
-              value={user.businessName || 'Not added'}
-              onChange={() => {}}
-            />
-          </div>
+          <form onSubmit={saveProfile}>
+            <div className="form-grid settings-form">
+              <Field
+                label="Full name"
+                name="fullName"
+                value={profile.fullName}
+                onChange={updateProfile}
+                required
+              />
+              <Field
+                label="Email address"
+                name="email"
+                type="email"
+                value={profile.email}
+                onChange={updateProfile}
+                required
+              />
+              <Field
+                label="Mobile number"
+                name="mobile"
+                value={profile.mobile}
+                onChange={updateProfile}
+              />
+              <Field
+                label="Business name"
+                name="businessName"
+                value={profile.businessName}
+                onChange={updateProfile}
+              />
+              <Field
+                label="Business address"
+                name="businessAddress"
+                value={profile.businessAddress}
+                onChange={updateProfile}
+                wide
+                placeholder="Street, city, state, PIN code"
+              />
+              <Field
+                label="GSTIN (optional)"
+                name="gstin"
+                value={profile.gstin}
+                onChange={updateProfile}
+                placeholder="15-character GSTIN"
+              />
+            </div>
+            {profileError && (
+              <div className="auth-alert error settings-feedback">{profileError}</div>
+            )}
+            {emailNotice && <div className="settings-feedback">{emailNotice}</div>}
+            {verificationLink && (
+              <div className="settings-feedback">
+                <a href={verificationLink}>Confirm email change</a>
+              </div>
+            )}
+            <div className="settings-save">
+              <button className="button-primary" type="submit" disabled={profileBusy}>
+                {profileBusy ? 'Saving…' : 'Save changes'}
+              </button>
+            </div>
+          </form>
           {!(user.authProviders || []).includes('password') && (
             <form className="link-password-form" onSubmit={linkPassword}>
               <div>
@@ -140,4 +245,5 @@ function SettingsPage({ user, onUser, notify, onLogoutAll }) {
     </>
   );
 }
+
 export default SettingsPage;

@@ -1,39 +1,104 @@
 import { useState } from 'react';
-import { ArrowRight, MapPin, MoreHorizontal, Plus, ShieldCheck, X } from 'lucide-react';
+import { ArrowRight, MapPin, Pencil, Plus, ShieldCheck, Trash2, X } from 'lucide-react';
 import API from '../../lib/api.js';
 import { Field, PageTitle } from '../../components/shared.jsx';
+
+const emptyForm = () => ({
+  label: '',
+  contactName: '',
+  phone: '',
+  address: '',
+  pin: '',
+  city: '',
+  state: '',
+  default: false,
+});
+
 function AddressBook({ addresses, setAddresses, notify }) {
-  const [show, setShow] = useState(false),
-    [form, setForm] = useState({
-      label: '',
-      contactName: '',
-      phone: '',
-      address: '',
-      pin: '',
-      city: '',
-      state: '',
-    });
-  const save = async () => {
+  const [show, setShow] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const save = async e => {
+    e.preventDefault();
     if (!form.label || !form.contactName || !/^\d{6}$/.test(form.pin) || !form.address) {
       notify('Add a name, full address, and valid 6-digit PIN.');
       return;
     }
-    const entry = {
-      ...form,
-      id: crypto.randomUUID(),
+    const input = {
+      label: form.label,
+      contactName: form.contactName,
+      phone: form.phone,
+      address: form.address,
+      pin: form.pin,
+      city: form.city,
+      state: form.state,
       type: 'Pickup',
-      default: addresses.length === 0,
+      default: form.default || addresses.length === 0,
     };
-    setAddresses([entry, ...addresses]);
-    fetch(`${API}/addresses`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(entry),
-    }).catch(() => {});
-    setForm({ label: '', contactName: '', phone: '', address: '', pin: '', city: '', state: '' });
-    setShow(false);
-    notify('Address saved to your address book.');
+    setBusy(true);
+    setError('');
+    try {
+      const response = await fetch(
+        `${API}/addresses${form.id ? `/${encodeURIComponent(form.id)}` : ''}`,
+        {
+          method: form.id ? 'PUT' : 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        },
+      );
+      const data = response.status === 204 ? null : await response.json();
+      if (!response.ok) throw new Error(data?.error || 'Could not save this address.');
+      setAddresses(current =>
+        form.id
+          ? current.map(address => (address.id === data.id ? data : address))
+          : [data, ...current],
+      );
+      setForm(emptyForm());
+      setShow(false);
+      notify(form.id ? 'Pickup address updated.' : 'Address saved to your address book.');
+    } catch (saveError) {
+      setError(saveError.message || 'Could not save this address.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const edit = address => {
+    setForm({
+      id: address.id,
+      label: address.label,
+      contactName: address.contactName,
+      phone: address.phone || '',
+      address: address.address,
+      pin: address.pin,
+      city: address.city || '',
+      state: address.state || '',
+      default: Boolean(address.default),
+    });
+    setError('');
+    setShow(true);
+  };
+  const remove = async address => {
+    try {
+      const response = await fetch(`${API}/addresses/${encodeURIComponent(address.id)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Could not remove this address.');
+      }
+      setAddresses(current => current.filter(item => item.id !== address.id));
+      notify('Address removed.');
+    } catch (removeError) {
+      notify(removeError.message || 'Could not remove this address.');
+    }
+  };
+  const addNew = () => {
+    setForm(emptyForm());
+    setError('');
+    setShow(true);
   };
   return (
     <>
@@ -42,7 +107,7 @@ function AddressBook({ addresses, setAddresses, notify }) {
         title="Address book"
         subtitle="Save your frequent pickup and delivery addresses."
         action={
-          <button className="button-primary" onClick={() => setShow(true)}>
+          <button className="button-primary" onClick={addNew}>
             <Plus size={17} /> Add address
           </button>
         }
@@ -67,14 +132,14 @@ function AddressBook({ addresses, setAddresses, notify }) {
                 <MapPin size={14} />
                 {a.type || 'Pickup'}
               </span>
-              <button
-                onClick={() => {
-                  setAddresses(addresses.filter(x => x.id !== a.id));
-                  notify('Address removed.');
-                }}
-              >
-                <MoreHorizontal size={18} />
-              </button>
+              <span className="address-actions">
+                <button aria-label={`Edit ${a.label}`} onClick={() => edit(a)}>
+                  <Pencil size={15} />
+                </button>
+                <button aria-label={`Remove ${a.label}`} onClick={() => remove(a)}>
+                  <Trash2 size={15} />
+                </button>
+              </span>
             </div>
             <h3>
               {a.label}
@@ -97,7 +162,7 @@ function AddressBook({ addresses, setAddresses, notify }) {
             </div>
             <h3>No saved addresses yet</h3>
             <p>Add a pickup location to speed up your next booking.</p>
-            <button className="button-secondary" onClick={() => setShow(true)}>
+            <button className="button-secondary" onClick={addNew}>
               <Plus size={15} /> Add your first address
             </button>
           </div>
@@ -109,14 +174,20 @@ function AddressBook({ addresses, setAddresses, notify }) {
             <div className="modal-head">
               <div>
                 <div className="eyebrow">ADDRESS BOOK</div>
-                <h2>Add a new address</h2>
+                <h2>{form.id ? 'Edit pickup address' : 'Add a new address'}</h2>
                 <p>Save a location for quicker bookings.</p>
               </div>
-              <button className="modal-close" onClick={() => setShow(false)}>
+              <button
+                className="modal-close"
+                onClick={() => {
+                  setShow(false);
+                  setForm(emptyForm());
+                }}
+              >
                 <X size={18} />
               </button>
             </div>
-            <div className="form-grid">
+            <form className="form-grid" onSubmit={save}>
               <Field
                 label="Address label"
                 name="label"
@@ -165,15 +236,32 @@ function AddressBook({ addresses, setAddresses, notify }) {
                 value={form.state}
                 onChange={e => setForm({ ...form, state: e.target.value })}
               />
-            </div>
-            <div className="modal-footer">
-              <button className="button-secondary" onClick={() => setShow(false)}>
-                Cancel
-              </button>
-              <button className="button-primary" onClick={save}>
-                Save address <ArrowRight size={15} />
-              </button>
-            </div>
+              <label className="default-address-check">
+                <input
+                  type="checkbox"
+                  checked={form.default}
+                  onChange={e => setForm({ ...form, default: e.target.checked })}
+                />
+                Set as default pickup address
+              </label>
+              {error && <div className="auth-alert error address-form-error">{error}</div>}
+              <div className="modal-footer address-form-footer">
+                <button
+                  className="button-secondary"
+                  type="button"
+                  onClick={() => {
+                    setShow(false);
+                    setForm(emptyForm());
+                    setError('');
+                  }}
+                >
+                  Cancel
+                </button>
+                <button className="button-primary" type="submit" disabled={busy}>
+                  {busy ? 'Saving…' : 'Save address'} <ArrowRight size={15} />
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
