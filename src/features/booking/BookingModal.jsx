@@ -143,7 +143,7 @@ function BookingModal({ onClose, onBooked, addresses }) {
     setTimeout(() => {
       const n = Date.now().toString().slice(-6),
         s = {
-          id: `SHP-2026-${n}`,
+          id: `SHP-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
           awb: `${provider.provider.slice(0, 2).toUpperCase()}${n}2845193`,
           provider: provider.provider,
           recipient: form.recipient,
