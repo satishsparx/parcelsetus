@@ -1,145 +1,31 @@
-import { useEffect, useState } from 'react';
-import {
-  ArrowUpRight,
-  Bell,
-  Check,
-  ChevronDown,
-  ChevronRight,
-  CircleHelp,
-  LayoutDashboard,
-  LogOut,
-  MapPin,
-  Menu,
-  MoreHorizontal,
-  Package,
-  Plus,
-  Search,
-  Settings,
-  Wallet,
-  X,
-} from 'lucide-react';
-import API from './lib/api.js';
+import { useState } from 'react';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Package } from 'lucide-react';
 import AuthScreen from './features/auth/AuthScreen.jsx';
+import LandingPage from './features/landing/LandingPage.jsx';
 import Dashboard from './features/dashboard/Dashboard.jsx';
 import Shipments from './features/shipments/Shipments.jsx';
-import BookingModal from './features/booking/BookingModal.jsx';
-import TrackingModal from './features/shipments/TrackingModal.jsx';
 import AddressBook from './features/addresses/AddressBook.jsx';
 import Payments from './features/payments/Payments.jsx';
 import SettingsPage from './features/settings/SettingsPage.jsx';
+import WorkspaceLayout from './app/components/WorkspaceLayout.jsx';
+import useAuthentication from './app/hooks/useAuthentication.js';
+import useToast from './app/hooks/useToast.js';
+import useWorkspaceData from './app/hooks/useWorkspaceData.js';
+import API from './lib/api.js';
+
 function App() {
-  const [auth, setAuth] = useState(() =>
-      new URLSearchParams(window.location.search).has('reset') ? null : undefined,
-    ),
-    [authView, setAuthView] = useState(() => {
-      const params = new URLSearchParams(window.location.search);
-      return params.has('verify') ? 'verifying' : params.has('reset') ? 'reset' : 'login';
-    }),
-    [authToken] = useState(() => {
-      const params = new URLSearchParams(window.location.search);
-      return params.get('verify') || params.get('reset') || '';
-    }),
-    [page, setPage] = useState('Overview'),
-    [shipments, setShipments] = useState([]),
-    [addresses, setAddresses] = useState([]),
-    [payments, setPayments] = useState([]),
-    [query, setQuery] = useState(''),
-    [statusFilter, setStatusFilter] = useState('All shipments'),
-    [bookOpen, setBookOpen] = useState(false),
-    [tracking, setTracking] = useState(null),
-    [toast, setToast] = useState(''),
-    [mobileNav, setMobileNav] = useState(false),
-    [range, setRange] = useState('Last 30 days'),
-    [authMessage, setAuthMessage] = useState('');
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const verify = params.get('verify'),
-      reset = params.get('reset'),
-      changeEmail = params.get('changeEmail');
-    if (verify) {
-      fetch(`${API}/auth/verify-email`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: verify }),
-      })
-        .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-        .then(({ ok, data }) => {
-          history.replaceState({}, '', window.location.pathname);
-          if (ok) {
-            setAuth(data.user);
-            setAuthView('login');
-          } else {
-            setAuth(null);
-            setAuthView('verify-error');
-            setAuthMessage(data.error);
-          }
-        })
-        .catch(() => {
-          setAuth(null);
-          setAuthView('verify-error');
-          setAuthMessage('Could not reach the server. Please try the verification link again.');
-        });
-      return;
-    }
-    if (changeEmail) {
-      fetch(`${API}/auth/verify-email-change`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: changeEmail }),
-      })
-        .then(r => r.json().then(data => ({ ok: r.ok, data })))
-        .then(async ({ ok, data }) => {
-          history.replaceState({}, '', window.location.pathname);
-          setAuthView('login');
-          if (!ok) {
-            setAuth(null);
-            setAuthMessage(data.error || 'Could not update your email address.');
-            return;
-          }
-          const current = await fetch(`${API}/auth/me`, { credentials: 'include' }).catch(
-            () => null,
-          );
-          const currentData = current?.ok ? await current.json() : null;
-          if (currentData?.user) {
-            setAuth(currentData.user);
-            setPage('Settings');
-          } else {
-            setAuth(null);
-            setAuthMessage('Email updated. Sign in with your new email address.');
-          }
-        })
-        .catch(() => {
-          history.replaceState({}, '', window.location.pathname);
-          setAuth(null);
-          setAuthView('login');
-          setAuthMessage('Could not reach the server to update your email address.');
-        });
-      return;
-    }
-    if (reset) return;
-    fetch(`${API}/auth/me`, { credentials: 'include' })
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => setAuth(d?.user || null))
-      .catch(() => setAuth(null));
-  }, []);
-  useEffect(() => {
-    if (!auth) return;
-    fetch(`${API}/shipments`, { credentials: 'include' })
-      .then(r => (r.ok ? r.json() : null))
-      .then(x => Array.isArray(x) && setShipments(x))
-      .catch(() => {});
-    fetch(`${API}/addresses`, { credentials: 'include' })
-      .then(r => (r.ok ? r.json() : null))
-      .then(x => x && setAddresses(x))
-      .catch(() => {});
-    fetch(`${API}/payments`, { credentials: 'include' })
-      .then(r => (r.ok ? r.json() : null))
-      .then(x => Array.isArray(x) && setPayments(x))
-      .catch(() => {});
-  }, [auth]);
-  if (auth === undefined)
+  const location = useLocation();
+  const navigate = useNavigate();
+  const authState = useAuthentication(navigate);
+  const { auth, setAuth, authView, setAuthView, authToken, authMessage, setAuthMessage } =
+    authState;
+  const { toast, setToast, notify } = useToast();
+  const workspaceData = useWorkspaceData(auth);
+  const [mobileNav, setMobileNav] = useState(false);
+  const bookingOpen = location.pathname === '/app/book';
+
+  if (auth === undefined) {
     return (
       <div className="auth-loading">
         <div className="brand-icon">
@@ -148,21 +34,21 @@ function App() {
         <span>Loading your workspace…</span>
       </div>
     );
-  if (!auth)
-    return (
-      <AuthScreen
-        view={authView}
-        setView={setAuthView}
-        token={authToken}
-        message={authMessage}
-        setMessage={setAuthMessage}
-        onAuth={setAuth}
-      />
-    );
-  const notify = s => {
-    setToast(s);
-    setTimeout(() => setToast(''), 3200);
+  }
+
+  const go = label => {
+    const paths = {
+      Overview: '/app',
+      Shipments: '/app/shipments',
+      'Book shipment': '/app/book',
+      'Address book': '/app/addresses',
+      Payments: '/app/payments',
+      Settings: '/app/settings',
+    };
+    navigate(paths[label] || '/app');
+    setMobileNav(false);
   };
+
   const logout = async (all = false) => {
     try {
       const response = await fetch(`${API}/auth/${all ? 'logout-all' : 'logout'}`, {
@@ -175,234 +61,181 @@ function App() {
       return;
     }
     setAuth(null);
-    setPage('Overview');
     setAuthView('login');
+    navigate('/');
     notify('You have been signed out.');
   };
-  const visible = shipments.filter(
-    s =>
-      (statusFilter === 'All shipments' || s.status === statusFilter) &&
-      `${s.id} ${s.awb} ${s.recipient} ${s.provider}`.toLowerCase().includes(query.toLowerCase()),
-  );
-  const nav = [
-    {
-      label: 'WORKSPACE',
-      items: [
-        ['Overview', LayoutDashboard],
-        ['Shipments', Package],
-        ['Book shipment', Plus],
-        ['Address book', MapPin],
-      ],
-    },
-    {
-      label: 'ACCOUNT',
-      items: [
-        ['Payments', Wallet],
-        ['Settings', Settings],
-      ],
-    },
-  ];
-  const go = v => {
-    if (v === 'Book shipment') {
-      setBookOpen(true);
-      return;
+
+  const onBooked = shipment => {
+    workspaceData.addBookedShipment(shipment);
+    if (shipment) {
+      navigate('/app/shipments');
+      notify('Payment verified and shipment booked successfully.');
     }
-    setPage(v);
-    setMobileNav(false);
   };
-  const createBooking = shipment => {
-    if (!shipment) return;
-    setShipments(current => [shipment, ...current.filter(item => item.id !== shipment.id)]);
-    setPayments(current => [
-      {
-        id: shipment.paymentId,
-        shipmentId: shipment.id,
-        carrier: shipment.provider,
-        amount: shipment.amount,
-        currency: 'INR',
-        method: 'upi',
-        status: 'used',
-        createdAt: shipment.createdAt,
-      },
-      ...current.filter(payment => payment.shipmentId !== shipment.id),
-    ]);
-    setBookOpen(false);
-    setPage('Shipments');
-    notify('Payment verified and shipment booked successfully.');
+
+  const changeAuthView = view => {
+    setAuthView(view);
+    if (view === 'register') navigate('/sign-up');
+    if (view === 'login') navigate('/sign-in');
   };
+  const handleAuth = user => {
+    setAuth(user);
+    navigate('/app', { replace: true });
+  };
+  const authScreen = view => (
+    <AuthScreen
+      view={view}
+      setView={changeAuthView}
+      token={authToken}
+      message={authMessage}
+      setMessage={setAuthMessage}
+      onAuth={handleAuth}
+      onHome={() => navigate('/')}
+    />
+  );
+
   const exportCsv = () => {
     const csv = [
       'Shipment ID,AWB,Provider,Recipient,Destination,Date,Amount,Status',
-      ...visible.map(s =>
-        [s.id, s.awb, s.provider, s.recipient, s.destination, s.date, s.amount, s.status].join(','),
+      ...workspaceData.visibleShipments.map(shipment =>
+        [
+          shipment.id,
+          shipment.awb,
+          shipment.provider,
+          shipment.recipient,
+          shipment.destination,
+          shipment.date,
+          shipment.amount,
+          shipment.status,
+        ].join(','),
       ),
     ].join('\n');
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-    a.download = 'parcelsetus-shipments.csv';
-    a.click();
-    URL.revokeObjectURL(a.href);
+    const anchor = document.createElement('a');
+    anchor.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    anchor.download = 'parcelsetus-shipments.csv';
+    anchor.click();
+    URL.revokeObjectURL(anchor.href);
   };
+
+  const workspacePage = (title, content) => {
+    if (!auth) return <Navigate to="/sign-in" replace />;
+    return (
+      <WorkspaceLayout
+        user={auth}
+        page={title}
+        shipmentCount={workspaceData.shipments.length}
+        mobileNav={mobileNav}
+        onMobileNav={setMobileNav}
+        onNavigate={go}
+        onLogout={() => logout(false)}
+        onNotify={notify}
+        onSearch={workspaceData.setQuery}
+        bookingOpen={bookingOpen}
+        addresses={workspaceData.addresses}
+        onBooked={onBooked}
+        tracking={workspaceData.tracking}
+        onCloseTracking={() => workspaceData.setTracking(null)}
+        toast={toast}
+        onClearToast={() => setToast('')}
+      >
+        {content}
+      </WorkspaceLayout>
+    );
+  };
+
+  const overview = (
+    <Dashboard
+      user={auth}
+      shipments={workspaceData.shipments}
+      go={go}
+      setTracking={workspaceData.setTracking}
+      range={workspaceData.range}
+      setRange={workspaceData.setRange}
+    />
+  );
+
+  const rootAuthView = ['reset', 'verifying', 'verify-error'].includes(authView);
+
   return (
-    <div className="app-shell">
-      <aside className={`sidebar ${mobileNav ? 'mobile-open' : ''}`}>
-        <div className="brand">
-          <div className="brand-icon">
-            <Package size={20} strokeWidth={2.4} />
-          </div>
-          <span>
-            parcel<span className="brand-light">setus</span>
-          </span>
-          <button className="sidebar-close" onClick={() => setMobileNav(false)}>
-            <X size={18} />
-          </button>
-        </div>
-        <div className="workspace-switch">
-          <div className="workspace-avatar">P</div>
-          <div className="workspace-copy">
-            <b>ParcelSetus Store</b>
-            <span>Business account</span>
-          </div>
-          <ChevronDown size={15} />
-        </div>
-        {nav.map(group => (
-          <div className="nav-group" key={group.label}>
-            <div className="nav-label">{group.label}</div>
-            {group.items.map(([name, Icon]) => (
-              <button
-                key={name}
-                className={`nav-item ${page === name ? 'active' : ''}`}
-                onClick={() => go(name)}
-              >
-                <Icon size={17} strokeWidth={1.8} />
-                <span>{name}</span>
-                {name === 'Shipments' && <span className="nav-count">{shipments.length}</span>}
-              </button>
-            ))}
-          </div>
-        ))}
-        <div className="sidebar-bottom">
-          <div className="help-card">
-            <div className="help-icon">
-              <CircleHelp size={17} />
-            </div>
-            <b>Need a hand?</b>
-            <p>Our shipping experts are here for you.</p>
-            <button onClick={() => notify('Support: hello@parcelsetus.com')}>
-              Visit help centre <ArrowUpRight size={13} />
-            </button>
-          </div>
-          <button className="profile-row" onClick={() => setPage('Settings')}>
-            <div className="profile-avatar">
-              {auth.fullName
-                ?.split(' ')
-                .map(x => x[0])
-                .slice(0, 2)
-                .join('') || 'PS'}
-            </div>
-            <div className="profile-copy">
-              <b>{auth.fullName}</b>
-              <span>{auth.email}</span>
-            </div>
-            <MoreHorizontal size={18} />
-          </button>
-          <button className="sidebar-logout" onClick={() => logout(false)}>
-            <LogOut size={15} /> Sign out
-          </button>
-        </div>
-      </aside>
-      {mobileNav && <div className="nav-scrim" onClick={() => setMobileNav(false)} />}
-      <main className="main-area">
-        <header className="topbar">
-          <button className="mobile-menu" onClick={() => setMobileNav(true)}>
-            <Menu size={19} />
-          </button>
-          <div className="breadcrumb">
-            Workspace <ChevronRight size={14} /> <b>{page}</b>
-          </div>
-          <div className="top-actions">
-            <div className="search-global">
-              <Search size={16} />
-              <input placeholder="Search anything..." onChange={e => setQuery(e.target.value)} />
-              <kbd>⌘ K</kbd>
-            </div>
-            <button
-              className="icon-button"
-              aria-label="Notifications"
-              onClick={() => notify('You’re all caught up.')}
-            >
-              <Bell size={18} />
-              <i />
-            </button>
-            <div className="top-divider" />
-            <button className="top-profile" onClick={() => setPage('Settings')}>
-              <div className="profile-avatar small">PS</div>
-              <ChevronDown size={14} />
-            </button>
-          </div>
-        </header>
-        <div className="content-wrap">
-          {page === 'Overview' ? (
-            <Dashboard
-              user={auth}
-              shipments={shipments}
-              go={go}
-              setTracking={setTracking}
-              range={range}
-              setRange={setRange}
-            />
-          ) : page === 'Shipments' ? (
-            <Shipments
-              shipments={visible}
-              query={query}
-              setQuery={setQuery}
-              statusFilter={statusFilter}
-              setStatusFilter={setStatusFilter}
-              exportCsv={exportCsv}
-              setTracking={setTracking}
-              go={go}
-            />
-          ) : page === 'Address book' ? (
-            <AddressBook addresses={addresses} setAddresses={setAddresses} notify={notify} />
-          ) : page === 'Payments' ? (
-            <Payments payments={payments} notify={notify} />
-          ) : page === 'Settings' ? (
-            <SettingsPage
-              user={auth}
-              onUser={setAuth}
-              notify={notify}
-              onLogoutAll={() => logout(true)}
-            />
+    <Routes>
+      <Route
+        path="/"
+        element={
+          auth ? (
+            <Navigate to="/app" replace />
+          ) : rootAuthView ? (
+            authScreen(authView)
           ) : (
-            <Dashboard
-              user={auth}
-              shipments={shipments}
-              go={go}
-              setTracking={setTracking}
-              range={range}
-              setRange={setRange}
-            />
-          )}
-        </div>
-      </main>
-      {bookOpen && (
-        <BookingModal
-          onClose={() => setBookOpen(false)}
-          addresses={addresses}
-          onBooked={createBooking}
-        />
-      )}
-      {tracking && <TrackingModal shipment={tracking} onClose={() => setTracking(null)} />}
-      {toast && (
-        <div className="toast">
-          <Check size={16} />
-          {toast}
-          <button onClick={() => setToast('')}>
-            <X size={14} />
-          </button>
-        </div>
-      )}
-    </div>
+            <LandingPage />
+          )
+        }
+      />
+      <Route
+        path="/sign-in"
+        element={
+          auth ? (
+            <Navigate to="/app" replace />
+          ) : (
+            authScreen(authView === 'forgot' ? 'forgot' : 'login')
+          )
+        }
+      />
+      <Route
+        path="/sign-up"
+        element={auth ? <Navigate to="/app" replace /> : authScreen('register')}
+      />
+      <Route path="/app" element={workspacePage('Overview', overview)} />
+      <Route
+        path="/app/shipments"
+        element={workspacePage(
+          'Shipments',
+          <Shipments
+            shipments={workspaceData.visibleShipments}
+            query={workspaceData.query}
+            setQuery={workspaceData.setQuery}
+            statusFilter={workspaceData.statusFilter}
+            setStatusFilter={workspaceData.setStatusFilter}
+            exportCsv={exportCsv}
+            setTracking={workspaceData.setTracking}
+            go={go}
+          />,
+        )}
+      />
+      <Route
+        path="/app/addresses"
+        element={workspacePage(
+          'Address book',
+          <AddressBook
+            addresses={workspaceData.addresses}
+            setAddresses={workspaceData.setAddresses}
+            notify={notify}
+          />,
+        )}
+      />
+      <Route
+        path="/app/payments"
+        element={workspacePage(
+          'Payments',
+          <Payments payments={workspaceData.payments} notify={notify} />,
+        )}
+      />
+      <Route
+        path="/app/settings"
+        element={workspacePage(
+          'Settings',
+          <SettingsPage
+            user={auth}
+            onUser={setAuth}
+            notify={notify}
+            onLogoutAll={() => logout(true)}
+          />,
+        )}
+      />
+      <Route path="/app/book" element={workspacePage('Overview', overview)} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
+
 export default App;

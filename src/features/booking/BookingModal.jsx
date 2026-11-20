@@ -139,15 +139,17 @@ function BookingModal({ onClose, onBooked, addresses }) {
     if (
       step === 1 &&
       (!form.pickupName ||
-        !form.pickupPhone ||
-        !form.pickupAddress ||
+        form.pickupPhone.trim().length < 8 ||
+        form.pickupAddress.trim().length < 5 ||
         !/^\d{6}$/.test(form.pickupPin) ||
         !form.recipient ||
-        !form.phone ||
-        !form.address ||
+        form.phone.trim().length < 8 ||
+        form.address.trim().length < 5 ||
         !/^\d{6}$/.test(form.pin))
     ) {
-      alert('Please complete the required address fields and enter valid 6-digit PIN codes.');
+      alert(
+        'Enter phone numbers with at least 8 digits, addresses with at least 5 characters, and valid 6-digit PIN codes.',
+      );
       return;
     }
     if (
@@ -204,7 +206,16 @@ function BookingModal({ onClose, onBooked, addresses }) {
         }),
       });
       const orderData = await orderResponse.json();
-      if (!orderResponse.ok) throw new Error(orderData.error || 'Could not start UPI checkout.');
+      if (!orderResponse.ok) {
+        const details = orderData.details
+          ?.map(({ field, message }) => `${field.replace(/^shipment\./, '')}: ${message}`)
+          .join('; ');
+        throw new Error(
+          details
+            ? `${orderData.error} ${details}`
+            : orderData.error || 'Could not start UPI checkout.',
+        );
+      }
       if (orderData.shipment) {
         onBooked(orderData.shipment);
         return;

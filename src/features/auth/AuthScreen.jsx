@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Check, Clock3, Package, ShieldCheck, Sparkles, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  Clock3,
+  Package,
+  ShieldCheck,
+  Sparkles,
+  X,
+} from 'lucide-react';
 import API from '../../lib/api.js';
-function AuthScreen({ view, setView, token, message, setMessage, onAuth }) {
+function AuthScreen({ view, setView, token, message, setMessage, onAuth, onHome }) {
   const [form, setForm] = useState({
       fullName: '',
       email: '',
@@ -245,6 +254,11 @@ function AuthScreen({ view, setView, token, message, setMessage, onAuth }) {
         </div>
       </section>
       <section className="auth-panel">
+        {onHome && (
+          <button className="auth-home-link" onClick={onHome}>
+            <ArrowLeft size={15} /> Back to home
+          </button>
+        )}
         <div className="auth-mobile-brand">
           <div className="brand-icon">
             <Package size={18} />
