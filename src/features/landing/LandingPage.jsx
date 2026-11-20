@@ -11,6 +11,7 @@ import {
   WalletCards,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import Reveal from './Reveal.jsx';
 import './landing.css';
 
 const features = [
@@ -189,7 +190,7 @@ function LandingPage() {
 
       <section className="landing-hero" id="platform">
         <div className="landing-hero-inner">
-          <div className="landing-hero-copy">
+          <Reveal className="landing-hero-copy">
             <div className="landing-kicker">
               <Sparkles size={14} /> A BETTER WAY TO SEND
             </div>
@@ -221,7 +222,7 @@ function LandingPage() {
                 <small>Less juggling. More momentum.</small>
               </span>
             </div>
-          </div>
+          </Reveal>
           <ShipmentPreview />
         </div>
         <div className="landing-hero-bottom">
@@ -233,7 +234,7 @@ function LandingPage() {
 
       <section className="landing-intro" id="why-parcelsetus">
         <div className="intro-overline">THE PARCELSETUS DIFFERENCE</div>
-        <div className="intro-content">
+        <Reveal className="intro-content">
           <h2>
             One thoughtful workspace.
             <br />
@@ -243,10 +244,15 @@ function LandingPage() {
             From the first booking to the final delivery update, keep the details close and the next
             step clear. ParcelSetus gives your shipping operation room to grow.
           </p>
-        </div>
+        </Reveal>
         <div className="feature-grid">
           {features.map(({ icon: Icon, number, title, copy }) => (
-            <article className="landing-feature" key={number}>
+            <Reveal
+              as="article"
+              className="landing-feature"
+              key={number}
+              delay={Number(number) * 90}
+            >
               <div className="feature-topline">
                 <span className="feature-icon">
                   <Icon size={19} />
@@ -256,13 +262,13 @@ function LandingPage() {
               <h3>{title}</h3>
               <p>{copy}</p>
               <span className="feature-rule" />
-            </article>
+            </Reveal>
           ))}
         </div>
       </section>
 
       <section className="landing-steps" id="how-it-works">
-        <div className="steps-copy">
+        <Reveal className="steps-copy">
           <div className="intro-overline">A CLEARER SHIPPING ROUTINE</div>
           <h2>
             From packed
@@ -275,8 +281,8 @@ function LandingPage() {
           <Link className="steps-link" to="/sign-up">
             Explore your workspace <ArrowRight size={16} />
           </Link>
-        </div>
-        <div className="steps-list">
+        </Reveal>
+        <Reveal className="steps-list" delay={100}>
           <article>
             <span>01</span>
             <div>
@@ -307,10 +313,10 @@ function LandingPage() {
               <MapPin size={17} />
             </i>
           </article>
-        </div>
+        </Reveal>
       </section>
 
-      <section className="landing-final-cta">
+      <Reveal as="section" className="landing-final-cta">
         <div className="final-cta-mark">
           <Package size={22} />
         </div>
@@ -321,7 +327,7 @@ function LandingPage() {
         <Link to="/sign-up">
           Create your account <ArrowRight size={17} />
         </Link>
-      </section>
+      </Reveal>
 
       <footer className="landing-footer">
         <Brand light />
