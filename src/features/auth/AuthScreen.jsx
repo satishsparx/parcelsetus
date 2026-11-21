@@ -267,7 +267,7 @@ function AuthScreen({ view, setView, token, message, setMessage, onAuth, onHome 
             parcel<span>setus</span>
           </b>
         </div>
-        <div className="auth-card">
+        <div className="auth-card" key={view}>
           <div className="eyebrow">
             {view === 'register'
               ? 'GET STARTED'
