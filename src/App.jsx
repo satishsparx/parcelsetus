@@ -17,7 +17,7 @@ import API from './lib/api.js';
 function App() {
   const location = useLocation();
   const navigate = useNavigate();
-  const authState = useAuthentication(navigate);
+  const authState = useAuthentication(navigate, location.pathname);
   const { auth, setAuth, authView, setAuthView, authToken, authMessage, setAuthMessage } =
     authState;
   const { toast, setToast, notify } = useToast();

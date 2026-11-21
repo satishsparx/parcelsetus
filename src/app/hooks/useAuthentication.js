@@ -1,9 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import API from '../../lib/api.js';
 
-export default function useAuthentication(navigate) {
+export default function useAuthentication(navigate, pathname) {
+  const sessionLookupStarted = useRef(false);
   const [auth, setAuth] = useState(() =>
-      new URLSearchParams(window.location.search).has('reset') ? null : undefined,
+      new URLSearchParams(window.location.search).has('reset') ||
+      !window.location.pathname.startsWith('/app')
+        ? null
+        : undefined,
     ),
     [authView, setAuthView] = useState(() => {
       const params = new URLSearchParams(window.location.search);
@@ -87,11 +91,18 @@ export default function useAuthentication(navigate) {
     }
 
     if (reset) return;
+    if (!pathname.startsWith('/app')) {
+      sessionLookupStarted.current = false;
+      return;
+    }
+    if (auth || sessionLookupStarted.current) return;
+
+    sessionLookupStarted.current = true;
     fetch(`${API}/auth/me`, { credentials: 'include' })
       .then(response => (response.ok ? response.json() : null))
       .then(data => setAuth(data?.user || null))
       .catch(() => setAuth(null));
-  }, [navigate]);
+  }, [navigate, pathname, auth]);
 
   return {
     auth,
