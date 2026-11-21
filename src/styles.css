@@ -1177,6 +1177,38 @@ button:disabled {
   grid-template-columns: 1fr 1fr;
   gap: 10px 9px;
 }
+.whatsapp-opt-in {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 12px;
+  padding: 10px 11px;
+  border: 1px solid #ececf1;
+  border-radius: 7px;
+  background: #fbfaff;
+  cursor: pointer;
+}
+.whatsapp-opt-in input {
+  width: 15px;
+  height: 15px;
+  margin: 2px 0 0;
+  accent-color: #6d55df;
+  flex: 0 0 auto;
+}
+.whatsapp-opt-in span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.whatsapp-opt-in b {
+  color: #4d4e58;
+  font-size: 12px;
+}
+.whatsapp-opt-in small {
+  color: #858491;
+  font-size: 11px;
+  line-height: 1.45;
+}
 .form-field {
   display: flex;
   flex-direction: column;

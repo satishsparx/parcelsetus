@@ -66,6 +66,7 @@ function BookingModal({ onClose, onBooked, addresses }) {
       value: '1200',
       payment: 'Prepaid',
       cod: '',
+      whatsappOptIn: false,
     });
   useEffect(() => {
     if (step !== 3) return;
@@ -134,7 +135,11 @@ function BookingModal({ onClose, onBooked, addresses }) {
     form.height,
     form.payment,
   ]);
-  const update = e => setForm({ ...form, [e.target.name]: e.target.value });
+  const update = e =>
+    setForm({
+      ...form,
+      [e.target.name]: e.target.type === 'checkbox' ? e.target.checked : e.target.value,
+    });
   const next = () => {
     if (
       step === 1 &&
@@ -202,6 +207,7 @@ function BookingModal({ onClose, onBooked, addresses }) {
             value: form.value,
             paymentType: form.payment,
             codAmount: form.cod ? Number(form.cod) : 0,
+            whatsappOptIn: form.whatsappOptIn,
           },
         }),
       });
@@ -421,6 +427,20 @@ function BookingModal({ onClose, onBooked, addresses }) {
                       placeholder="State"
                     />
                   </div>
+                  <label className="whatsapp-opt-in">
+                    <input
+                      type="checkbox"
+                      name="whatsappOptIn"
+                      checked={form.whatsappOptIn}
+                      onChange={update}
+                    />
+                    <span>
+                      <b>Send WhatsApp booking updates</b>
+                      <small>
+                        I confirm the recipient agrees to receive shipment updates on WhatsApp.
+                      </small>
+                    </span>
+                  </label>
                 </fieldset>
               </div>
             </>
